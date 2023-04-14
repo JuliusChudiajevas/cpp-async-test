@@ -13,11 +13,12 @@
 //   *a = *a + 1;
 // }
 
-static class Tasker {
+class Tasker {
  private:
   static std::mutex taskQueueMutex;
   static std::queue<std::packaged_task<void()>> taskQueue;
   static int threadCount;
+  static int MAX_THREADS;
 
   static void execute() {
     std::packaged_task<void()> task;
@@ -33,13 +34,15 @@ static class Tasker {
     task();
     task.get_future().get();
     threadCount--;
-    std::cout << "\n"
-              << "thread id " << std::this_thread::get_id() << "\n";
+    std::cout << "thread id " << std::this_thread::get_id() << "\n";
     std::cout << "thread count " << threadCount << "\n";
   }
 
  public:
   Tasker() {
+  }
+  static void setMaxThreads(int maxThreads) {
+    MAX_THREADS = maxThreads;
   }
 
   static void enqueue(std::packaged_task<void()> task) {
@@ -50,7 +53,7 @@ static class Tasker {
   }
 
   static void update() {
-    if (threadCount < 3 && !taskQueue.empty()) {
+    if (threadCount < MAX_THREADS && !taskQueue.empty()) {
       {
         std::thread t(execute);
         t.detach();
@@ -63,6 +66,7 @@ static class Tasker {
 std::mutex Tasker::taskQueueMutex;
 std::queue<std::packaged_task<void()>> Tasker::taskQueue;
 int Tasker::threadCount = 0;
+int Tasker::MAX_THREADS = 3;
 
 void coutFunction(std::string text) {
   std::this_thread::sleep_for(std::chrono::milliseconds(2000));
@@ -79,7 +83,7 @@ void input() {
     std::cout << "insert to queue"
               << "\n";
 
-    std::packaged_task<void()> task = std::packaged_task<void()>(std::bind(coutFunction, "done"));
+    std::packaged_task<void()> task = std::packaged_task<void()>(std::bind(coutFunction, "\ndone"));
     Tasker::enqueue(std::move(task));
   }
 }
@@ -89,6 +93,7 @@ void addToQueue(std::queue<std::function<void()>>* taskQueue, std::mutex* queueM
 
 int main() {
   coutFunction("start");
+  Tasker::setMaxThreads(4);
   int n{0};
   std::thread t(coutFunction, "asdf");
   t.join();
@@ -99,6 +104,7 @@ int main() {
   task2();
   std::cout << task.get_future().get();
   std::cout << task2.get_future().get();
+
   while (true) {
     // std::this_thread::sleep_for(std::chrono::milliseconds(20));
     Tasker::update();
